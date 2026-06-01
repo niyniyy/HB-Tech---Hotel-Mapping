@@ -1,0 +1,6 @@
+supplier_name,supplier_hotel_id,hotel_name,city,country,latitude,longitude,star_rating,chain_name
+GRN,GRN001,The Leela Palace Chennai,Chennai,India,13.0172,80.2737,5,Leela
+Booking,BKG001,Leela Palace Chennai,Chennai,India,13.0173,80.2738,5,Leela
+Sabre,SBR001,The Leela Palace Adyar,Chennai,India,13.0171,80.2736,5,Leela
+Expedia,EXP001,ITC Grand Chola Chennai,Chennai,India,13.0106,80.2206,5,ITC
+Agoda,AGD001,Grand Chola Hotel Chennai,Chennai,India,13.0105,80.2207,5,ITC
