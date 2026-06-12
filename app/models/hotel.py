@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import (
-    BigInteger, Boolean, Column, DateTime, Decimal,
+    BigInteger, Boolean, Column, DateTime,
     Integer, Numeric, String, Text, func
 )
 from sqlalchemy.dialects.postgresql import JSONB

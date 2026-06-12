@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.orm import DeclarativeBase
 from config import settings
 
+
 # Async engine for FastAPI
 engine = create_async_engine(
     settings.DATABASE_URL,

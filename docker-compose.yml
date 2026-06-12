@@ -4,7 +4,7 @@ services:
 
   # ─── PostgreSQL with PostGIS + pgvector ───
   db:
-    image: pgvector/pgvector:pg16
+    build: .
     container_name: hotel_mapping_db
     restart: always
     environment:
@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: hotel_mapping
     ports:
-      - "5432:5432"
+      - "5435:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql

@@ -16,19 +16,21 @@ class SupplierHotelRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def bulk_insert(self, hotels: list[dict]) -> int:
+    async def bulk_insert(self, hotels: list[dict]) -> list[int]:
         """
         Insert a batch of hotels into supplier_hotels.
         Returns count of inserted rows.
         """
         if not hotels:
-            return 0
+            return []
 
         try:
             # Build SQLAlchemy insert objects
             hotel_objects = [SupplierHotel(**h) for h in hotels]
             self.db.add_all(hotel_objects)
             await self.db.flush()
+
+            inserted_ids = [hotel.id for hotel in   hotel_objects]
 
             # Populate geo_location from lat/lon using PostGIS
             await self.db.execute(text("""
@@ -41,7 +43,7 @@ class SupplierHotelRepository:
                 AND longitude IS NOT NULL
             """))
 
-            return len(hotel_objects)
+            return inserted_ids
 
         except Exception as e:
             logger.error(f"Bulk insert failed: {e}")

@@ -1,0 +1,15 @@
+services:
+  postgres:
+    build: .
+    container_name: hb_hotel_mapping_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: HB_Hotel_Mapping
+    ports:
+      - "5435:5432"
+    volumes:
+      - hb_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  hb_postgres_data:

@@ -4,6 +4,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.hotel_repository import SupplierHotelRepository, MappingQueueRepository
 from app.models.schemas import ImportSummary
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +77,14 @@ class ImportService:
 
             if batch_data:
                 try:
-                    count = await self.hotel_repo.bulk_insert(batch_data)
-                    inserted += count
-                    logger.info(f"Batch {batch_num + 1}/{num_batches}: inserted {count} rows")
+                    ids = await self.hotel_repo.bulk_insert(batch_data)
+
+                    inserted += len(ids)
+
+                    inserted_ids.extend(ids)
+                    
+                    logger.info(
+    f"Batch {batch_num + 1}/{num_batches}: inserted {len(ids)} rows")
                 except Exception as e:
                     logger.error(f"Batch {batch_num + 1} failed: {e}")
                     errors += len(batch_data)
@@ -128,12 +134,17 @@ class ImportService:
         except (ValueError, TypeError):
             star = None
 
+        raw_json = {
+            k: (None if pd.isna(v) else v)
+            for k, v in row.to_dict().items()
+        }
+        
         return {
             "supplier_name": supplier_name,
             "supplier_hotel_id": str(row.get("supplier_hotel_id", "")).strip(),
-            "hotel_name": str(row["hotel_name"]).strip() if not pd.isnull(row.get("hotel_name")) else None,
-            "normalized_name": str(row["normalized_name"]).strip() if not pd.isnull(row.get("normalized_name")) else None,
-            "address": str(row["address"]).strip() if not pd.isnull(row.get("address")) else None,
+            "hotel_name": str(row["mapping_hotel_name"]).strip() if not pd.isnull(row.get("mapping_hotel_name")) else None,
+            "normalized_name": str(row["normalized_hotelname"]).strip() if not pd.isnull(row.get("normalized_hotelname")) else None,
+            "address": str(row["mapping_address"]).strip() if not pd.isnull(row.get("mapping_address")) else None,
             "city": str(row["city"]).strip() if not pd.isnull(row.get("city")) else None,
             "state": str(row["state"]).strip() if not pd.isnull(row.get("state")) else None,
             "country": str(row["country"]).strip() if not pd.isnull(row.get("country")) else None,
@@ -141,5 +152,5 @@ class ImportService:
             "latitude": lat,
             "longitude": lon,
             "star_rating": star,
-            "raw_json": row.to_dict(),
+            "raw_json": raw_json,
         }
