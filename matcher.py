@@ -115,8 +115,8 @@ def get_match_decision(final_score, geo_score=None, name_score=None):
     route to manual review instead of creating a new master hotel.
     """
 
-    if final_score >= 90:
-        return "AUTO_MATCH"
+  if final_score >= 90:
+    return "AUTO_MATCH"
 
     if final_score >= 75:
         return "MANUAL_REVIEW"
