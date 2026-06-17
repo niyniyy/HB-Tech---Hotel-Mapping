@@ -106,14 +106,22 @@ def calculate_chain_score(master_chain_name=None, supplier_chain_name=None):
     return 0.0
 
 
-def get_match_decision(final_score):
+def get_match_decision(final_score, geo_score=None, name_score=None):
     """
     Decide mapping action based on final score.
+
+    Additional safeguard:
+    If geo match is very strong and name score is reasonably high,
+    route to manual review instead of creating a new master hotel.
     """
+
     if final_score >= 90:
         return "AUTO_MATCH"
 
     if final_score >= 75:
+        return "MANUAL_REVIEW"
+
+    if geo_score == 40.0 and name_score is not None and name_score >= 25:
         return "MANUAL_REVIEW"
 
     return "CREATE_NEW_MASTER"
@@ -181,7 +189,11 @@ def calculate_rule_based_score(
         "star_score": star_score,
         "chain_score": chain_score,
         "final_score": final_score,
-        "decision": get_match_decision(final_score)
+        "decision": get_match_decision(
+    final_score,
+    geo_score,
+    name_result["name_score"]
+)
     }
 
 
