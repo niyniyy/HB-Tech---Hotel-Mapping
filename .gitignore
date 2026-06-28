@@ -33,3 +33,8 @@ logs/
 
 # Docker volumes
 postgres_data/
+
+# Temporary output files
+manual_review.json
+mapping_run.log
+

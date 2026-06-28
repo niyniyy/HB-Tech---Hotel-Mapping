@@ -6,7 +6,7 @@ from config import settings
 # Async engine for FastAPI
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    echo=False,
     pool_size=10,
     max_overflow=20,
 )

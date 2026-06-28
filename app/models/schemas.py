@@ -100,3 +100,62 @@ class SuggestedMatchesResponse(BaseModel):
     supplier_name: str
     hotel_name: Optional[str]
     candidates: list[MatchSuggestion]
+
+
+class SuggestedMatch(BaseModel):
+    candidate_supplier_hotel_id: int
+    candidate_supplier_name: str
+
+    ai_similarity_score: float
+    ai_decision: str
+
+
+class SuggestedMatchesResponse(BaseModel):
+    matches: list[SuggestedMatch]
+    
+    
+# ─── Manual Review Schemas ───
+
+class ManualReviewItem(BaseModel):
+    supplier_hotel_id: int
+
+    supplier_name: str
+    hotel_name: Optional[str]
+
+    suggested_master_hotel_id: int
+    master_hotel_name: Optional[str]
+
+    rule_score: float
+    ai_similarity: Optional[float]
+
+    decision_reason: Optional[str]
+
+    created_at: datetime
+
+
+class ManualReviewResponse(BaseModel):
+    reviews: list[ManualReviewItem]
+    
+    
+class ManualReviewDetail(BaseModel):
+    supplier_hotel_id: int
+
+    supplier_name: str
+    hotel_name: Optional[str]
+    address: Optional[str]
+    city: Optional[str]
+    country: Optional[str]
+
+    suggested_master_hotel_id: int
+
+    master_hotel_name: Optional[str]
+    master_address: Optional[str]
+    master_city: Optional[str]
+    master_country: Optional[str]
+
+    rule_score: float
+    ai_similarity: Optional[float]
+
+    decision_reason: Optional[str]
+
+    created_at: datetime

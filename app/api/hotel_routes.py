@@ -6,8 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.connection import get_db
 from app.services.import_service import ImportService
 from app.services.mapping_status_service import MappingStatusService
-from app.models.schemas import ImportSummary, MappingStatusResponse
+from app.services.manual_review_service import ManualReviewService
+from app.models.schemas import (
+    ImportSummary,
+    MappingStatusResponse,
+    SuggestedMatchesResponse,
+    ManualReviewResponse,
+    ManualReviewDetail,
+)
 import logging
+from app.services.suggested_matches_service import SuggestedMatchesService
 
 logger = logging.getLogger(__name__)
 
@@ -81,3 +89,77 @@ async def get_mapping_status(
     """
     service = MappingStatusService(db)
     return await service.get_status()
+
+
+@router.get(
+    "/hotels/{supplier_hotel_id}/matches",
+    response_model=SuggestedMatchesResponse
+)
+async def get_suggested_matches(
+    supplier_hotel_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+
+    service = SuggestedMatchesService(db)
+
+    matches = await service.get_suggestions(
+        supplier_hotel_id
+    )
+
+    return {
+        "matches": matches
+    }
+    
+
+# ─────────────────────────────────────────────────────────────
+# ENDPOINT: Get Manual Review Queue
+# GET /api/v1/manual-review
+# ─────────────────────────────────────────────────────────────
+@router.get(
+    "/manual-review",
+    response_model=ManualReviewResponse
+)
+async def get_manual_review_queue(
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns hotels awaiting manual review.
+
+    Optional query parameter:
+    - limit (default = 100)
+    """
+
+    service = ManualReviewService(db)
+
+    reviews = await service.get_manual_reviews(limit)
+
+    return {
+        "reviews": reviews
+    }
+    
+@router.get(
+    "/manual-review/{supplier_hotel_id}",
+    response_model=ManualReviewDetail
+)
+async def get_manual_review(
+    supplier_hotel_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns one hotel awaiting manual review.
+    """
+
+    service = ManualReviewService(db)
+
+    review = await service.get_manual_review(
+        supplier_hotel_id
+    )
+
+    if review is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Manual review not found."
+        )
+
+    return review 

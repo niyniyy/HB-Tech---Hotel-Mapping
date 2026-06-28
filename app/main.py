@@ -2,7 +2,9 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.hotel_routes import router as hotel_router
+from app.api.mapping import router as mapping_router
 from config import settings
+
 
 # Configure logging
 logging.basicConfig(
@@ -31,6 +33,7 @@ app.add_middleware(
 
 # ─── Routers ───
 app.include_router(hotel_router)
+app.include_router(mapping_router)
 
 
 # ─── Health Check ───

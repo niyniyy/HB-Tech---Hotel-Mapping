@@ -5,6 +5,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from app.database.connection import Base
+from pgvector.sqlalchemy import Vector
 
 
 class SupplierHotel(Base):
@@ -133,12 +134,67 @@ class HotelEmbedding(Base):
     __tablename__ = "hotel_embeddings"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+
     master_hotel_id = Column(BigInteger, nullable=True, index=True)
     supplier_hotel_id = Column(BigInteger, nullable=True, index=True)
     supplier_name = Column(String(50), nullable=True)
-    # embedding vector(384) — created via raw SQL migration
+
+    embedding = Column(Vector(384), nullable=False)
 
     created_at = Column(DateTime, default=func.now(), nullable=False)
 
     def __repr__(self):
         return f"<HotelEmbedding id={self.id} supplier={self.supplier_name}>"
+
+
+class ManualReviewCandidate(Base):
+    """
+    Table 6: manual_review_candidates
+
+    Stores the suggested match for hotels that require
+    human verification before mapping.
+    """
+
+    __tablename__ = "manual_review_candidates"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+
+    supplier_hotel_id = Column(
+        BigInteger,
+        nullable=False,
+        index=True
+    )
+
+    suggested_master_hotel_id = Column(
+        BigInteger,
+        nullable=False,
+        index=True
+    )
+
+    rule_score = Column(
+        Numeric(5, 2),
+        nullable=False
+    )
+
+    ai_similarity = Column(
+        Numeric(5, 4),
+        nullable=True
+    )
+
+    decision_reason = Column(
+        Text,
+        nullable=True
+    )
+
+    created_at = Column(
+        DateTime,
+        default=func.now(),
+        nullable=False
+    )
+
+    def __repr__(self):
+        return (
+            f"<ManualReviewCandidate "
+            f"supplier={self.supplier_hotel_id} "
+            f"master={self.suggested_master_hotel_id}>"
+        )

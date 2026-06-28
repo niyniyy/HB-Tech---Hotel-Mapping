@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 from app.models.hotel import SupplierHotel, HotelMappingQueue
-from app.models.schemas import SupplierHotelCreate
 import logging
 
 logger = logging.getLogger(__name__)
@@ -92,9 +91,60 @@ class MappingQueueRepository:
             )
             for hotel_id in supplier_hotel_ids
         ]
+
         self.db.add_all(queue_items)
         await self.db.flush()
+
         return len(queue_items)
+
+    async def get_pending_items(self, limit: int = 100) -> list[HotelMappingQueue]:
+        """
+        Fetch pending queue items for processing.
+        """
+        result = await self.db.execute(
+            select(HotelMappingQueue)
+            .where(HotelMappingQueue.status == "Pending")
+            .limit(limit)
+        )
+
+        return result.scalars().all()
+
+    async def mark_processing(self, queue_id: int) -> HotelMappingQueue | None:
+        """
+        Mark queue item as Processing.
+        """
+        item = await self.db.get(HotelMappingQueue, queue_id)
+
+        if item:
+            item.status = "Processing"
+            await self.db.flush()
+
+        return item
+
+    async def mark_completed(self, queue_id: int) -> HotelMappingQueue | None:
+        """
+        Mark queue item as Completed.
+        """
+        item = await self.db.get(HotelMappingQueue, queue_id)
+
+        if item:
+            item.status = "Completed"
+            await self.db.flush()
+
+        return item
+
+    async def mark_failed(self, queue_id: int) -> HotelMappingQueue | None:
+        """
+        Mark queue item as Failed and increment retry count.
+        """
+        item = await self.db.get(HotelMappingQueue, queue_id)
+
+        if item:
+            item.status = "Failed"
+            item.retry_count += 1
+            await self.db.flush()
+
+        return item
 
     async def get_status_counts(self) -> dict:
         """
@@ -107,6 +157,7 @@ class MappingQueueRepository:
                 func.count(HotelMappingQueue.id).label("count")
             ).group_by(HotelMappingQueue.status)
         )
+
         rows = result.all()
         counts = {row.status: row.count for row in rows}
 
