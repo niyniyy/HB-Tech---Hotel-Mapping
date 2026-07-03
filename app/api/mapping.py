@@ -44,6 +44,19 @@ async def get_mapping_statistics(
     statistics = await service.get_mapping_statistics()
 
     return statistics
+
+@router.get("/mapping/supplier-statistics")
+async def get_supplier_statistics(
+    session: AsyncSession = Depends(get_db)
+):
+
+    service = MasterHotelService(session)
+
+    suppliers = await service.get_supplier_statistics()
+
+    return {
+        "suppliers": suppliers
+    }
     
 
 @router.post("/manual-review/{supplier_hotel_id}/approve")

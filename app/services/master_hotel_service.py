@@ -164,3 +164,70 @@ class MasterHotelService:
         row = result.mappings().first()
 
         return dict(row)
+    
+    async def get_supplier_statistics(
+        self
+    ) -> list[dict[str, Any]]:
+
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+    sh.supplier_name,
+
+    COUNT(*) AS total_hotels,
+
+    COUNT(hm.supplier_hotel_id) AS mapped_hotels,
+
+    COUNT(
+        CASE
+            WHEN hm.mapping_type = 'AUTO'
+            THEN 1
+        END
+    ) AS auto_mapped,
+
+    COUNT(
+        CASE
+            WHEN hm.mapping_type = 'NEW_MASTER'
+            THEN 1
+        END
+    ) AS new_master,
+
+    COUNT(
+        CASE
+            WHEN hm.mapping_type = 'MANUAL'
+            THEN 1
+        END
+    ) AS manual_mapped,
+
+    COUNT(
+        CASE
+            WHEN hm.mapping_type = 'MANUAL_NEW_MASTER'
+            THEN 1
+        END
+    ) AS manual_new_master,
+
+    ROUND(
+        COUNT(hm.supplier_hotel_id)::numeric
+        * 100
+        / NULLIF(COUNT(*), 0),
+        1
+    ) AS mapping_percentage
+
+FROM supplier_hotels sh
+
+LEFT JOIN hotel_mappings hm
+    ON sh.supplier_name = hm.supplier_name
+   AND sh.supplier_hotel_id = hm.supplier_hotel_id
+
+GROUP BY sh.supplier_name
+
+ORDER BY sh.supplier_name;
+                """
+            )
+        )
+
+        return [
+            dict(row)
+            for row in result.mappings().all()
+        ]
