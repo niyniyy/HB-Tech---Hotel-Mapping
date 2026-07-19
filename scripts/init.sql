@@ -88,6 +88,25 @@ CREATE TABLE IF NOT EXISTS hotel_embeddings (
 );
 
 -- ─────────────────────────────────────────────────────────────
+-- Table 5: manual_review_candidates
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS manual_review_candidates (
+    id                          BIGSERIAL PRIMARY KEY,
+
+    supplier_hotel_id           BIGINT NOT NULL,
+
+    suggested_master_hotel_id   BIGINT NOT NULL,
+
+    rule_score                  DECIMAL(5,2),
+
+    ai_similarity               DECIMAL(5,2),
+
+    decision_reason             TEXT,
+
+    created_at                  TIMESTAMP DEFAULT NOW()
+);
+
+-- ─────────────────────────────────────────────────────────────
 -- Indexes
 -- ─────────────────────────────────────────────────────────────
 
@@ -134,3 +153,9 @@ ON supplier_hotels(supplier_name);
 
 CREATE INDEX IF NOT EXISTS idx_mapping_master
 ON hotel_mappings(master_hotel_id);
+
+CREATE INDEX IF NOT EXISTS idx_manual_supplier
+ON manual_review_candidates(supplier_hotel_id);
+
+CREATE INDEX IF NOT EXISTS idx_manual_master
+ON manual_review_candidates(suggested_master_hotel_id);

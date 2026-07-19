@@ -14,12 +14,13 @@ class AISimilarityService:
 
 
     async def find_ai_matches(
-      self,
-      supplier_hotel_id: int,
-      hotel_name: str,
-      address: str,
-      city: str,
-      country: str
+    self,
+    supplier_hotel_id: int,
+    hotel_name: str,
+    address: str,
+    city: str,
+    country: str,
+    candidate_master_ids: list[int]
 ):
         """
         Generate AI similarity matches for a hotel.
@@ -42,11 +43,10 @@ class AISimilarityService:
 
         # Step 3: Vector search
         matches = await self.vector_service.find_similar_hotels(
-          embedding,
-          source_supplier_hotel_id=supplier_hotel_id,
-          limit=5
-        )
-
+    embedding=embedding,
+    candidate_master_ids=candidate_master_ids,
+    limit=5
+)
 
         results = []
 
@@ -67,18 +67,15 @@ class AISimilarityService:
 
 
             results.append(
-              {
-                  "candidate_supplier_hotel_id": match["supplier_hotel_id"],
-                  "candidate_supplier_name": match["supplier_name"],
+    {
+        "master_hotel_id": match["master_hotel_id"],
 
-                  "ai_similarity_score": round(
-                      similarity * 100,
-                      2
-                  ),
+        "ai_similarity_score": round(
+            similarity * 100,
+            2
+        ),
 
-                  "ai_decision": decision
-              }
+        "ai_decision": decision
+    }
 )
-
-
         return results

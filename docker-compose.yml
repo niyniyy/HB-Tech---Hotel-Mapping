@@ -1,37 +1,37 @@
 version: "3.9"
 
 services:
-
-  # ─── PostgreSQL with PostGIS + pgvector ───
   db:
-    build: .
-    container_name: hotel_mapping_db
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    container_name: hotel_mapping_db_v2
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: hotel_mapping
     ports:
-      - "5435:5432"
+      - "5436:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_v2:/var/lib/postgresql/data
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
 
-  # ─── Redis for Celery ───
   redis:
     image: redis:7-alpine
-    container_name: hotel_mapping_redis
+    container_name: hotel_mapping_redis_v2
     restart: always
     ports:
-      - "6379:6379"
+      - "6380:6379"
 
-  # ─── FastAPI App ───
   api:
-    build: .
-    container_name: hotel_mapping_api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hotel_mapping_api_v2
     restart: always
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/hotel_mapping
       SYNC_DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/hotel_mapping
@@ -44,10 +44,11 @@ services:
     volumes:
       - .:/app
 
-  # ─── Celery Worker ───
   worker:
-    build: .
-    container_name: hotel_mapping_worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hotel_mapping_worker_v2
     command: celery -A app.jobs.celery_app worker --loglevel=info --concurrency=4
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/hotel_mapping
@@ -62,4 +63,4 @@ services:
       - .:/app
 
 volumes:
-  postgres_data:
+  postgres_data_v2:

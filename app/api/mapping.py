@@ -3,7 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.manual_review_service import ManualReviewService
 from app.services.master_hotel_service import MasterHotelService
 from app.database.connection import get_db
-from app.services.queue_processing_service import QueueProcessingService
+from app.jobs.mapping_worker import process_queue_batch
+from app.jobs.mapping_worker import generate_master_embeddings
 
 
 router = APIRouter(
@@ -11,37 +12,44 @@ router = APIRouter(
     tags=["Mapping"]
 )
 
+@router.post("/embeddings/generate-masters")
+async def generate_master_hotel_embeddings():
 
+    task = generate_master_embeddings.delay()
+
+    return {
+        "message": "Master hotel embedding generation started.",
+        "task_id": task.id
+    }
+    
 @router.post("/mapping/run")
 async def run_mapping(
-    limit: int = 10,
-    apply_decision: bool = False,
+    limit: int = 1000,
+    apply_decision: bool = True,
     session: AsyncSession = Depends(get_db)
 ):
     """
-    Run rule-based matching on pending queue records.
+    Process all pending queue records in batches.
 
-    apply_decision=False means dry run only.
-    apply_decision=True means update DB based on rule decision.
+    apply_decision=True updates the database based on
+    the final mapping decision.
     """
 
-    service = QueueProcessingService(session)
-
-    result = await service.process_pending_batch(
+    task = process_queue_batch.delay(
         limit=limit,
         apply_decision=apply_decision
     )
 
-    return result
+    return {
+        "message": "Queue processing started.",
+        "task_id": task.id
+    }
 
 @router.get("/mapping/statistics")
-async def get_mapping_statistics(
-    session: AsyncSession = Depends(get_db)
-):
+async def get_mapping_statistics(session: AsyncSession = Depends(get_db)):
+    print("===== STATISTICS ENDPOINT HIT =====", flush=True)
 
-    service = MasterHotelService(session)
-
-    statistics = await service.get_mapping_statistics()
+    statistics = await MasterHotelService(session).get_mapping_statistics()
 
     return statistics
 

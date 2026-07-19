@@ -25,6 +25,7 @@ geopy==2.4.1
 # AI / Vector Similarity
 sentence-transformers==3.0.1
 torch==2.3.1
+pgvector==0.2.5
 
 # Data Processing
 pandas==2.2.2

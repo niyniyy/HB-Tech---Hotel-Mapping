@@ -8,11 +8,11 @@ class VectorSimilarityService:
 
 
     async def find_similar_hotels(
-      self,
-      embedding: list[float],
-      source_supplier_hotel_id: int | None = None,
-      limit: int = 5
-    ):
+    self,
+    embedding: list[float],
+    candidate_master_ids: list[int],
+    limit: int = 5
+):
         """
         Find nearest hotel embeddings using pgvector cosine similarity.
         """
@@ -24,26 +24,27 @@ class VectorSimilarityService:
 
 
         query = text("""
-            SELECT
-                supplier_hotel_id,
-                supplier_name,
-                1 - (embedding <=> CAST(:embedding AS vector))
-                    AS similarity_score
-            FROM hotel_embeddings
-            WHERE supplier_hotel_id != :source_supplier_hotel_id
-            ORDER BY embedding <=> CAST(:embedding AS vector)
-            LIMIT :limit
+    SELECT
+        master_hotel_id,
+        1 - (embedding <=> CAST(:embedding AS vector))
+            AS similarity_score
+    FROM hotel_embeddings
+    WHERE master_hotel_id IS NOT NULL
+      AND supplier_hotel_id IS NULL
+      AND master_hotel_id = ANY(:candidate_master_ids)
+    ORDER BY embedding <=> CAST(:embedding AS vector)
+    LIMIT :limit
 """)
 
 
         result = await self.db.execute(
-            query,
-            {
-                "embedding": embedding_str,
-                "source_supplier_hotel_id": source_supplier_hotel_id,
-                "limit": limit
-            }
-        )
+    query,
+    {
+        "embedding": embedding_str,
+        "candidate_master_ids": candidate_master_ids,
+        "limit": limit
+    }
+)
 
 
         return result.mappings().all()

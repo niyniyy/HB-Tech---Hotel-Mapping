@@ -1,9 +1,10 @@
 from celery import Celery
+from config import settings
 
 celery_app = Celery(
     "hotel_mapping",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/1",
+    broker=settings.CELERY_BROKER_URL,
+    backend=settings.CELERY_RESULT_BACKEND,
     include=["app.jobs.mapping_worker"]
 )
 

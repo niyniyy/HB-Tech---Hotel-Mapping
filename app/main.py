@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.hotel_routes import router as hotel_router
 from app.api.mapping import router as mapping_router
@@ -11,7 +11,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s — %(name)s — %(levelname)s — %(message)s"
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn")
+
 
 # ─── FastAPI App ───
 app = FastAPI(
@@ -30,6 +31,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+@app.middleware("http")
+async def request_logger(request: Request, call_next):
+    logger.info("%s %s", request.method, request.url.path)
+    response = await call_next(request)
+    logger.info("%s %s -> %d", request.method, request.url.path, response.status_code)
+    return response
 
 # ─── Routers ───
 app.include_router(hotel_router)
@@ -50,7 +57,7 @@ async def health_check():
 @app.on_event("startup")
 async def on_startup():
     logger.info(f"{settings.APP_NAME} v{settings.APP_VERSION} started")
-    logger.info("Docs available at: http://localhost:8000/docs")
+    logger.info("Docs available at: http://localhost:8001/docs")
 
 
 if __name__ == "__main__":

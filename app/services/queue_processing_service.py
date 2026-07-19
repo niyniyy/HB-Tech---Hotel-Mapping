@@ -5,6 +5,7 @@ from app.services.matching_service import MatchingService
 from app.matching.ai_integration_service import AIIntegrationService
 from app.services.hotel_mapping_service import HotelMappingService
 from typing import Any  
+from app.matching.master_embedding_service import MasterEmbeddingService
 
 class QueueProcessingService:
     """
@@ -14,13 +15,15 @@ class QueueProcessingService:
     AIIntegrationService should be plugged in after MatchingService returns
     the rule-based result and before final decision is applied.
     """
-
+    print("USING QueueProcessingService from:", __file__)
+    
     def __init__(self, session: AsyncSession):
         self.session = session
-
+         
         self.matching_service = MatchingService(session)
         self.ai_service = AIIntegrationService(session)
         self.mapping_service = HotelMappingService(session)
+        self.master_embedding_service = MasterEmbeddingService(session)
 
     async def get_pending_queue_ids(self, limit: int = 10):
         result = await self.session.execute(
@@ -138,7 +141,9 @@ class QueueProcessingService:
             new_master_hotel_id = await self.mapping_service.create_master_hotel_from_supplier(
     supplier_hotel
 )
-
+            await self.master_embedding_service.generate_embedding_for_master(
+    new_master_hotel_id
+)
             await self.mapping_service.insert_hotel_mapping(
                 master_hotel_id=new_master_hotel_id,
                 supplier_hotel=supplier_hotel,
@@ -179,6 +184,10 @@ class QueueProcessingService:
             supplier_hotel_record_id
         )
         
+        print(f"\nHotel ID: {supplier_hotel_record_id}")
+        print("Rule decision:", match_result.get("rule_decision"))
+        print("Final decision:", match_result.get("final_decision"))
+        
         best_candidate = match_result.get("best_candidate")
 
         if best_candidate:
@@ -187,17 +196,20 @@ class QueueProcessingService:
 
             rule_score = score["rule_score"]
 
-            if 70 <= rule_score < 90:
+            if 75 <= rule_score < 90:
+
+                rule_candidates = match_result.get("candidates", [])
 
                 enriched_candidate = await self.ai_service.enrich_candidate(
-                    best_candidate
+                    best_candidate,
+                    rule_candidates
                 )
 
                 match_result["best_candidate"] = enriched_candidate
 
                 match_result["final_decision"] = (
-    enriched_candidate["score"]["final_decision"]
-)
+                    enriched_candidate["score"]["final_decision"]
+                )
 
         if not apply_decision:
             await self.mapping_service.update_queue_status(
@@ -208,6 +220,8 @@ class QueueProcessingService:
             return match_result
 
         final_result = await self.apply_rule_decision(match_result)
+        
+        print("Result:", final_result)
 
         return {
             "match_result": match_result,
@@ -216,45 +230,79 @@ class QueueProcessingService:
 
     async def process_pending_batch(
         self,
-        limit: int = 10,
+        limit: int = 1000,
         apply_decision: bool = False
     ):
-        pending_ids = await self.get_pending_queue_ids(limit)
+        print("===== STARTING QUEUE PROCESSING =====")
 
         results = []
+        total_processed = 0
 
-        for supplier_hotel_record_id in pending_ids:
-            try:
-                result = await self.process_one_supplier_hotel(
-                    supplier_hotel_record_id,
-                    apply_decision=apply_decision
-                )
+        while True:
 
-                results.append(result)
+            # Fetch next batch of Pending hotels
+            pending_ids = await self.get_pending_queue_ids(limit)
 
-            except Exception as error:
+            # Stop only when no Pending hotels remain
+            if not pending_ids:
+                print("No Pending hotels remaining.")
+                break
 
-                await self.session.rollback()
+            print(
+                f"Processing next batch of {len(pending_ids)} hotels"
+            )
 
+            for supplier_hotel_record_id in pending_ids:
                 try:
-                    await self.mapping_service.update_queue_status(
+                    result = await self.process_one_supplier_hotel(
                         supplier_hotel_record_id,
-                        "Pending"
+                        apply_decision=apply_decision
                     )
+
+                    # Commit each successfully processed hotel
                     await self.session.commit()
-                except Exception:
+
+                    results.append(result)
+                    total_processed += 1
+
+                except Exception as error:
+                    print(
+                        f"ERROR processing hotel "
+                        f"{supplier_hotel_record_id}: {error}"
+                    )
+
                     await self.session.rollback()
 
-                results.append({
-                    "supplier_hotel_record_id": supplier_hotel_record_id,
-                    "status": "FAILED",
-                    "error": str(error)
-                })
+                    try:
+                        await self.mapping_service.update_queue_status(
+                            supplier_hotel_record_id,
+                            "Failed"
+                        )
+                        await self.session.commit()
 
-        # Commit all successful work in the batch
-        await self.session.commit()
+                    except Exception as status_error:
+                        print(
+                            f"ERROR updating queue status: "
+                            f"{status_error}"
+                        )
+                        await self.session.rollback()
+
+                    results.append({
+                        "supplier_hotel_record_id":
+                            supplier_hotel_record_id,
+                        "status": "FAILED",
+                        "error": str(error)
+                    })
+
+                    total_processed += 1
+
+            print(
+                f"Batch complete. Total processed so far: "
+                f"{total_processed}"
+            )
 
         return {
-            "processed_count": len(results),
+            "processed_count": total_processed,
+            "message": "Queue processing completed",
             "results": results
         }

@@ -65,7 +65,7 @@ class MatchingService:
                 WHERE s.id = :supplier_hotel_record_id
                   AND s.geo_location IS NOT NULL
                   AND m.geo_location IS NOT NULL
-                  AND ST_DWithin(m.geo_location, s.geo_location, 300)
+                  AND ST_DWithin(m.geo_location, s.geo_location, 1000)
 
                 ORDER BY distance_meters ASC
                 LIMIT 10;
@@ -152,10 +152,13 @@ class MatchingService:
             for candidate in candidates
         ]
 
-        best_candidate = max(
-            scored_candidates,
-            key=lambda item: item["score"]["rule_score"]
-        )
+        scored_candidates = sorted(
+    scored_candidates,
+    key=lambda item: item["score"]["rule_score"],
+    reverse=True
+)
+
+        best_candidate = scored_candidates[0]
 
         return {
             "supplier_hotel_record_id": supplier_hotel_record_id,
