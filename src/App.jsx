@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "http://localhost:8001";
 
 /* ---------------- MOCK DATA FALLBACKS ---------------- */
 
@@ -823,20 +823,63 @@ function ReviewDetails({ review, approveReview, createMaster, rejectReview }) {
 
 function MasterHotelsPage() {
   const [query, setQuery] = useState("");
+  const [providerHotelId, setProviderHotelId] = useState("");
+  const [providerName, setProviderName] = useState("");
+  const [hotelChainName, setHotelChainName] = useState("");
+  const [propertyType, setPropertyType] = useState("");
+  const [country, setCountry] = useState("");
+  const [cityName, setCityName] = useState("");
+  const [star, setStar] = useState(0);
+
   const [results, setResults] = useState([]);
   const [selectedMaster, setSelectedMaster] = useState(null);
   const [mappings, setMappings] = useState([]);
+  const [showMasterPopup, setShowMasterPopup] = useState(false);
+
   const [message, setMessage] = useState("");
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
+  const providerOptions = [
+    "BookingCom",
+    "Cleartrip",
+    "CleartripAPI",
+    "GRN",
+    "GRNConnect",
+    "HummingBird",
+    "HummingBirdIndia",
+    "Sabre",
+    "SabreAPI",
+    "SabreGDS",
+  ];
+
+function getSearchText() {
+  return (
+    query ||
+    providerHotelId ||
+    hotelChainName ||
+    cityName ||
+    country ||
+    providerName
+  );
+}
+
   async function searchMasterHotels() {
+    const searchText = getSearchText();
+
+    if (!searchText) {
+      setMessage("Please enter a hotel name or filter value to search.");
+      return;
+    }
+
     setLoadingSearch(true);
     setMessage("");
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/v1/master-hotels/search?q=${encodeURIComponent(query)}&limit=50`
+        `${API_BASE_URL}/api/v1/master-hotels/search?q=${encodeURIComponent(
+          searchText
+        )}&limit=50`
       );
 
       if (!response.ok) throw new Error("Master hotel search failed");
@@ -846,12 +889,6 @@ function MasterHotelsPage() {
         ? data
         : data.results || data.items || [];
 
-      /*
-        The search endpoint usually returns only:
-        id, hotel_name, city, country, star_rating.
-        To show address/latitude/longitude in the search tab,
-        we enrich each search result using the detail endpoint.
-      */
       const enrichedResults = await Promise.all(
         baseResults.map(async (hotel) => {
           const masterHotelId = getMasterHotelId(hotel);
@@ -886,9 +923,11 @@ function MasterHotelsPage() {
     setLoadingSearch(false);
   }
 
-  async function loadMasterHotelDetails(masterHotelId) {
+  async function openMasterPopup(masterHotelId) {
     setLoadingDetails(true);
     setMessage("");
+    setShowMasterPopup(true);
+    setMappings([]);
 
     try {
       const detailsResponse = await fetch(
@@ -929,74 +968,227 @@ function MasterHotelsPage() {
     setLoadingDetails(false);
   }
 
+  function resetFilters() {
+    setQuery("");
+    setProviderHotelId("");
+    setProviderName("");
+    setHotelChainName("");
+    setPropertyType("");
+    setCountry("");
+    setCityName("");
+    setStar(0);
+    setResults([]);
+    setMessage("");
+  }
+
   return (
-    <main className="page">
+    <main className="page master-search-page">
       <PageTitle
         title="Master Hotels"
-        subtitle="Search master hotels and view all supplier hotels mapped to each master record."
+        subtitle="Search master hotels and view mapped supplier records."
       />
 
       {message && <Alert message={message} />}
 
-      <section className="toolbar">
+      <section className="master-search-top">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search master hotel by name..."
+          placeholder="Enter hotel name to search"
           onKeyDown={(event) => {
             if (event.key === "Enter") searchMasterHotels();
           }}
         />
-        <button className="btn-primary" onClick={searchMasterHotels}>
-          Search
-        </button>
       </section>
 
-      <section className="master-layout">
-        <div className="card">
-          <h2>Search Results</h2>
+      <section className="master-filter-panel">
+        <div className="master-filter-grid">
+          <label>
+            Provider Hotel Id:
+            <input
+              value={providerHotelId}
+              onChange={(event) => setProviderHotelId(event.target.value)}
+              placeholder="Provider Hotel Id"
+            />
+          </label>
 
-          {loadingSearch ? (
-            <Loading text="Searching master hotels and loading coordinates..." />
-          ) : results.length === 0 ? (
-            <EmptyState text="Search for a master hotel to see results." />
-          ) : (
-            <div className="result-list">
-              {results.map((hotel, index) => {
-                const masterId = getMasterHotelId(hotel);
+        
 
-                return (
-                  <button
-                    className="result-item"
-                    key={masterId || index}
-                    onClick={() => loadMasterHotelDetails(masterId)}
-                  >
-                    <strong>{getMasterHotelName(hotel)}</strong>
-                    <span>{getMasterAddress(hotel)}</span>
-                    <small>
-                      {getMasterCity(hotel)} / {getMasterCountry(hotel)} | Star:{" "}
-                      {getMasterStar(hotel)}
-                    </small>
-                    <small>
-                      Lat: {getMasterLatitude(hotel)} | Long: {getMasterLongitude(hotel)}
-                    </small>
-                  </button>
-                );
-              })}
+          <label>
+            Provider Name:
+            <select
+              value={providerName}
+              onChange={(event) => setProviderName(event.target.value)}
+            >
+              <option value="">Select Provider Name</option>
+              {providerOptions.map((provider) => (
+                <option key={provider} value={provider}>
+                  {provider}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Hotel Chain Name:
+            <input
+              value={hotelChainName}
+              onChange={(event) => setHotelChainName(event.target.value)}
+              placeholder="Search or Type Hotel Chain"
+            />
+          </label>
+
+          <label>
+            Property Type:
+            <input
+              value={propertyType}
+              onChange={(event) => setPropertyType(event.target.value)}
+              placeholder="Search or Type Category"
+            />
+          </label>
+
+          <label>
+            Country:
+            <input
+              value={country}
+              onChange={(event) => setCountry(event.target.value)}
+              placeholder="Search Country"
+            />
+          </label>
+
+          <label>
+            City Name:
+            <input
+              value={cityName}
+              onChange={(event) => setCityName(event.target.value)}
+              placeholder="City Name"
+            />
+          </label>
+
+          <label className="star-filter">
+            Star:
+            <input
+              type="range"
+              min="0"
+              max="5"
+              step="0.5"
+              value={star}
+              onChange={(event) => setStar(event.target.value)}
+            />
+            <div className="star-scale">
+              <span>0</span>
+              <span>1</span>
+              <span>2</span>
+              <span>3</span>
+              <span>4</span>
+              <span>5</span>
             </div>
-          )}
+          </label>
         </div>
 
-        <div className="card">
-          <h2>Master Hotel Details</h2>
+        <div className="master-filter-actions">
+          <button className="btn-property-count" type="button">
+            Get Property Count
+          </button>
 
+          <div className="master-action-buttons">
+            <button className="btn-outline" onClick={resetFilters}>
+              Reset
+            </button>
+            <button className="btn-search-blue" onClick={searchMasterHotels}>
+              Search
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="master-results-card">
+        {loadingSearch ? (
+          <Loading text="Searching master hotels..." />
+        ) : results.length === 0 ? (
+          <EmptyState text="Search for a master hotel to see results." />
+        ) : (
+          <div className="master-results-scroll">
+            <table className="master-results-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>MastelHotel ID</th>
+                  <th>Provider Name</th>
+                  <th>Provider Hotel Id</th>
+                  <th>Hotel Name</th>
+                  <th>Address</th>
+                  <th>Star</th>
+                  <th>Lat</th>
+                  <th>Long</th>
+                  <th>View</th>
+                  <th>Find Duplicate</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {results.map((hotel, index) => {
+                  const masterId = getMasterHotelId(hotel);
+
+                  return (
+                    <tr key={masterId || index}>
+                      <td>{index + 1}</td>
+                      <td>{masterId}</td>
+                      <td>{hotel.supplier_name ?? hotel.provider_name ?? "Master"}</td>
+                      <td>
+                        {hotel.supplier_hotel_id ??
+                          hotel.provider_hotel_id ??
+                          hotel.hotel_id ??
+                          "-"}
+                      </td>
+                      <td>{getMasterHotelName(hotel)}</td>
+                      <td className="address-cell">{getMasterAddress(hotel)}</td>
+                      <td>{getMasterStar(hotel)}</td>
+                      <td>{getMasterLatitude(hotel)}</td>
+                      <td>{getMasterLongitude(hotel)}</td>
+                      <td>
+                        <button
+                          className="icon-button"
+                          onClick={() => openMasterPopup(masterId)}
+                          title="View details"
+                        >
+                          👁
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          className="icon-button"
+                          onClick={() => openMasterPopup(masterId)}
+                          title="Find duplicate"
+                        >
+                          ↗
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {showMasterPopup && (
+        <Modal
+          title="Master Hotel Information"
+          onClose={() => {
+            setShowMasterPopup(false);
+            setSelectedMaster(null);
+            setMappings([]);
+          }}
+        >
           {loadingDetails ? (
-            <Loading text="Loading master hotel details..." />
+            <Loading text="Loading master hotel information..." />
           ) : !selectedMaster ? (
-            <EmptyState text="Select a master hotel to view details and mappings." />
+            <EmptyState text="No master hotel details found." />
           ) : (
-            <>
-              <div className="details-section">
+            <div className="master-popup-content">
+              <section className="master-popup-details">
                 <Detail label="Master Hotel ID" value={getMasterHotelId(selectedMaster)} />
                 <Detail label="Hotel Name" value={getMasterHotelName(selectedMaster)} />
                 <Detail label="Address" value={getMasterAddress(selectedMaster)} />
@@ -1005,44 +1197,42 @@ function MasterHotelsPage() {
                 <Detail label="Star Rating" value={getMasterStar(selectedMaster)} />
                 <Detail label="Latitude" value={getMasterLatitude(selectedMaster)} />
                 <Detail label="Longitude" value={getMasterLongitude(selectedMaster)} />
-                <Detail
-                  label="Coordinates"
-                  value={`${getMasterLatitude(selectedMaster)}, ${getMasterLongitude(
-                    selectedMaster
-                  )}`}
-                />
-              </div>
+              </section>
 
               <h3>Mapped Supplier Hotels</h3>
 
               {mappings.length === 0 ? (
                 <EmptyState text="No supplier mappings found." />
               ) : (
-                <div className="table-scroll">
-                  <table>
+                <div className="master-popup-table-scroll">
+                  <table className="master-results-table">
                     <thead>
                       <tr>
-                        <th>Supplier</th>
-                        <th>Supplier Hotel ID</th>
+                        <th>#</th>
+                        <th>Provider Name</th>
+                        <th>Provider Hotel Id</th>
                         <th>Hotel Name</th>
                         <th>Address</th>
                         <th>City</th>
                         <th>Country</th>
                         <th>Star</th>
-                        <th>Latitude</th>
-                        <th>Longitude</th>
+                        <th>Lat</th>
+                        <th>Long</th>
                         <th>Mapping Type</th>
                         <th>Match Score</th>
-                        <th>Manual Verified</th>
                       </tr>
                     </thead>
 
                     <tbody>
                       {mappings.map((mapping, index) => (
                         <tr key={index}>
+                          <td>{index + 1}</td>
                           <td>{mapping.supplier_name ?? mapping.supplierName ?? "-"}</td>
                           <td>
-                            {mapping.supplier_hotel_id ?? mapping.supplierHotelId ?? "-"}
+                            {mapping.supplier_hotel_id ??
+                              mapping.supplierHotelId ??
+                              mapping.provider_hotel_id ??
+                              "-"}
                           </td>
                           <td>{mapping.hotel_name ?? mapping.hotelName ?? "-"}</td>
                           <td className="address-cell">
@@ -1057,23 +1247,16 @@ function MasterHotelsPage() {
                           <td>
                             <ScoreBadge score={mapping.match_score ?? mapping.matchScore} />
                           </td>
-                          <td>
-                            {String(
-                              mapping.is_manual_verified ??
-                                mapping.isManualVerified ??
-                                "-"
-                            )}
-                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-            </>
+            </div>
           )}
-        </div>
-      </section>
+        </Modal>
+      )}
     </main>
   );
 }
