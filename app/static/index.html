@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HB Hotel Mapping — Review Console</title>
+<link rel="icon" href="/ui/logo.png">
+<link rel="stylesheet" href="/ui/styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <img class="brand-logo" src="/ui/logo.png" alt="Hummingbird — Business Stay Automated">
+      <div class="brand-sub">Hotel Mapping · Review Console</div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sidebar-foot">
+      <div id="footStatus">—</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h1 id="pageTitle">Dashboard</h1>
+      <div class="spacer"></div>
+      <button class="btn-sm" onclick="App.refresh()">Refresh</button>
+    </div>
+    <div class="content" id="view">
+      <div class="spinner">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<div id="modalHost"></div>
+<div id="toastHost"></div>
+
+<script src="/ui/app.js"></script>
+</body>
+</html>
