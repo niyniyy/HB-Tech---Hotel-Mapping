@@ -40,6 +40,14 @@ class PipelineResetService:
     service exists to prevent. So the pointer is nulled while the identity it
     belongs to is kept; `register_master()` re-binds it on the next run.
 
+    The status is demoted along with the pointer, for the same reason and with
+    the same limit. `Active` asserts that a master exists and was corroborated;
+    once the master is gone that assertion has nothing behind it, and it cannot
+    be left for the next run to correct because the run only revisits ids whose
+    seed record creates a master — a record that lands in review creates none,
+    so its id would keep claiming to be a live property forever. A reviewer's
+    own confirmation is exempt, per the third rule.
+
     Sequences are deliberately NOT restarted. `master_hotel_id` is internal and
     disposable by design, so a restart buys nothing and guarantees id reuse.
     """
@@ -104,7 +112,41 @@ class PipelineResetService:
             text(
                 """
                 UPDATE master_hotel_registry
-                SET master_hotel_id = NULL
+                SET master_hotel_id = NULL,
+                    -- Demote as we detach. 'Active' is a claim about a master
+                    -- that this statement is deleting, so leaving it set lets it
+                    -- outlive its own evidence. Most rows are repaired on the
+                    -- next run, because register_master() rewrites status when it
+                    -- reclaims the id — but it only runs for a record that
+                    -- CREATES a master, and a record that now routes to review
+                    -- creates none. Those ids were left Active pointing at
+                    -- nothing: counted as live properties, silently absent from
+                    -- the export that joins through master_hotel_id, and served
+                    -- as a row of nulls by /masters/<id>.
+                    --
+                    -- Nothing is lost by demoting: the public id, its anchor and
+                    -- its history all survive, and promote_if_corroborated()
+                    -- restores Active as soon as a second supplier attaches.
+                    status = CASE
+                               WHEN status = 'Active'
+                                AND confirmed_by IS DISTINCT FROM 'reviewer'
+                               THEN 'Provisional'
+                               ELSE status
+                             END,
+                    -- A reviewer's confirmation is a human ruling and survives a
+                    -- reset by this service's own contract; the pipeline's
+                    -- auto-corroboration is re-derived by the next run, so its
+                    -- metadata is cleared with the status it justified rather
+                    -- than left describing a master that no longer exists.
+                    confirmed_at = CASE WHEN status = 'Active'
+                                         AND confirmed_by IS DISTINCT FROM 'reviewer'
+                                        THEN NULL ELSE confirmed_at END,
+                    confirm_reason = CASE WHEN status = 'Active'
+                                           AND confirmed_by IS DISTINCT FROM 'reviewer'
+                                          THEN NULL ELSE confirm_reason END,
+                    confirmed_by = CASE WHEN status = 'Active'
+                                         AND confirmed_by IS DISTINCT FROM 'reviewer'
+                                        THEN NULL ELSE confirmed_by END
                 WHERE master_hotel_id IS NOT NULL;
                 """
             )

@@ -44,7 +44,7 @@ const App = {
     document.getElementById('pageTitle').textContent = title ? title.label : 'Dashboard';
     const foot = this.data.dashboard?.stats;
     document.getElementById('footStatus').textContent =
-      foot ? `${fmt(foot.active_masters)} masters · ${fmt(foot.supplier_hotels)} records` : '—';
+      foot ? `${fmt(foot.master_hotels)} masters · ${fmt(foot.supplier_hotels)} records` : '—';
     await this[`render_${this.page}`]().catch(err => {
       el('view').innerHTML = `<div class="alert alert-danger"><div class="alert-icon">!</div>
         <div class="alert-body"><div class="alert-title">Could not load this page</div>
@@ -108,12 +108,18 @@ const App = {
       ${gateBanner(gate)}
       ${banner}
       <div class="stat-grid">
-        ${stat('Master hotels', fmt(s.active_masters), 'unique properties', 'ok')}
+        ${stat('Master hotels', fmt(s.master_hotels),
+               `${fmt(s.active_masters)} confirmed by 2+ providers · ${fmt(s.provisional_masters)} provisional`,
+               'ok')}
         ${stat('Supplier records', fmt(s.supplier_hotels), `${fmt(s.auto_mapped)} auto-matched`)}
         ${stat('Discarded', fmt(s.discarded), `${fmt(s.discarded_unread)} unread`, s.discarded_unread ? 'warn' : '')}
         ${stat('Pending review', fmt(s.pending_review), 'awaiting a decision', s.pending_review ? 'warn' : '')}
         ${stat('Reviewer decisions', fmt(s.reviewer_assertions), 'permanent, never overridden')}
         ${stat('Retired IDs', fmt(s.merged_ids), 'still resolve to successor')}
+        ${stat('Unresolved IDs', fmt(s.unresolved_ids),
+               s.unresolved_ids ? 'anchor record in review — no property behind them'
+                                : 'every issued ID resolves',
+               s.unresolved_ids ? 'warn' : 'ok')}
         ${stat('Duplicate masters', dupc ? fmt(dupc.duplicate_pairs) : '…',
                dupc?.duplicate_pairs ? 'pairs to merge — see Duplicate Masters' : 'none detected',
                dupc?.duplicate_pairs ? 'warn' : 'ok')}
@@ -495,6 +501,9 @@ const App = {
         </div>
         <button class="btn-sm" onclick="App.reactivateModal()">Reactivate</button></div>` : '';
 
+    // No unresolved-id branch here: /masters/<id> now 404s for an id with no
+    // master behind it, with a message explaining why, so this function is only
+    // ever reached for an id that actually resolves to a property.
     el('view').innerHTML = `
       ${redirect}${deprecated}
       <div class="card">
@@ -1012,14 +1021,17 @@ const App = {
           one hotel, and we filed it under several — so every merge here is a known correction, not a
           judgement call. Merging one raises measured recall.
           ${queued ? `${fmt(queued)} already have a record waiting in Manual Review.` : ''}
-          Unlike Duplicate Masters, this finds them even when the names differ and they sit far apart.</div>
+          Unlike Duplicate Masters, this finds them even when the names differ and they sit far apart.
+          <br>Ordered worst first: most masters, then most supplier records pulled apart, then by name.</div>
       </div></div>
 
       <div class="card"><div class="card-body flush"><div class="table-wrap"><table>
-        <thead><tr><th style="width:56px" class="num">Masters</th><th>Our masters</th>
+        <thead><tr><th style="width:56px" class="num">Masters</th>
+          <th style="width:64px" class="num">Records</th><th>Our masters</th>
           <th>Also queued</th><th>Merge</th></tr></thead>
         <tbody>${d.splits.map((x, i) => `<tr>
           <td class="num"><strong>${x.masters}</strong></td>
+          <td class="num">${fmt(x.provider_records)}</td>
           <td>${(x.masters_detail || []).map((m, j) => `
             <div style="${j ? 'margin-top:5px' : ''}">
               <strong>${esc(m.hotel_name || '—')}</strong>
@@ -1431,11 +1443,25 @@ const App = {
     const issues = d.issues_in_sample;
     const anyIssue = Object.values(issues).some(v => v > 0);
 
+    // Same warning the workbook report shows. Without it a file that is already
+    // fully imported offers a confident "Import N rows" button and then reports
+    // 0 inserted with no reason.
+    const dupes = d.already_present || 0;
+
     el('importReport').innerHTML = `
       ${d.ok ? '' : `<div class="alert alert-danger"><div class="alert-icon">!</div><div class="alert-body">
         <div class="alert-title">Cannot import — required columns not found</div>
         <div class="alert-text">Missing: ${d.missing_required.join(', ')}.
           The file must have a hotel ID, a hotel name and a country.</div></div></div>`}
+
+      ${dupes ? `<div class="alert alert-${dupes >= d.total_rows ? 'danger' : 'info'}">
+        <div class="alert-icon">!</div><div class="alert-body">
+        <div class="alert-title">${fmt(dupes)} of these ${fmt(d.total_rows)} rows are already in the database</div>
+        <div class="alert-text">${dupes >= d.total_rows
+          ? 'Every row here has been imported before, so this import would add nothing.'
+          : 'Those rows will be <strong>skipped</strong>, not added again — only genuinely new records are imported.'}
+          Importing does not overwrite; if you meant to replace the existing data, delete it first.</div>
+        </div></div>` : ''}
 
       ${d.supplier_column_in_file?.length ? `<div class="alert alert-info"><div class="alert-icon">i</div>
         <div class="alert-body"><div class="alert-title">The file has its own supplier column</div>
@@ -1507,6 +1533,10 @@ const App = {
       el('importReport').innerHTML = `<div class="alert alert-ok"><div class="alert-icon">✓</div>
         <div class="alert-body"><div class="alert-title">Imported ${fmt(result.inserted)} hotels for ${esc(result.supplier_name)}</div>
         <div class="alert-text">${fmt(result.skipped)} row(s) skipped for missing a name or country.
+          ${result.already_present
+            ? `${fmt(result.already_present)} row(s) were already in the database and were skipped —
+               that is a different thing from the count above, which is rows the file itself could not supply.`
+            : ''}
           ${result.queued ? `${fmt(result.queued)} queued for mapping — go to Run Pipeline to process them.` : ''}</div></div>
         ${result.queued ? `<button class="btn-primary btn-sm" onclick="location.hash='#/pipeline'">Run pipeline</button>` : ''}</div>`;
       toast(`Imported ${result.inserted} hotels`);

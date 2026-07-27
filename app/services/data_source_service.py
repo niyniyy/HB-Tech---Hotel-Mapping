@@ -1,4 +1,3 @@
-import base64
 import io
 import logging
 import math
@@ -9,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.normalization.normalizer import core_hotel_name, normalize_hotel_name
+from app.services.import_staging import stage_upload
 
 logger = logging.getLogger(__name__)
 
@@ -195,27 +195,14 @@ class DataSourceService:
 
             supplier = str(sheet).strip()
 
-            report = self.analyse(frame, supplier)
+            report = await self.analyse_frame(frame, supplier)
             report["sheet"] = sheet
             report["suggested_supplier_name"] = supplier
-            report["token"] = base64.b64encode(
-                frame.to_json(orient="split", date_format="iso").encode()
-            ).decode()
-
-            # Answered before anything is written, so a re-import is visible as
-            # a warning rather than as a doubled dataset afterwards.
-            if report.get("ok"):
-                detected = detect_columns(list(frame.columns))
-                rows = [
-                    row for row in (
-                        self._map_row(raw, detected, supplier)
-                        for _, raw in frame.iterrows()
-                    )
-                    if row is not None and row["hotel_name"] and row["country"]
-                ]
-                report["already_present"] = await self.count_already_imported(rows)
-            else:
-                report["already_present"] = 0
+            # Staged server-side like the single-file path. A workbook is the
+            # case most likely to be large, so shipping every sheet back through
+            # the browser was the worst version of the same problem. The blob is
+            # content-addressed, so all sheets share one stored copy of the file.
+            report["token"] = stage_upload(content, filename, sheet=sheet)
 
             reports.append(report)
 
@@ -262,6 +249,42 @@ class DataSourceService:
             engine.dispose()
 
     # ── analyse ─────────────────────────────────────────────────────────────
+
+    async def analyse_frame(self, frame: pd.DataFrame, supplier_name: str,
+                            mapping: dict = None) -> dict:
+        """
+        `analyse` plus the "have I imported this already?" count.
+
+        Every analyse path must go through here. The duplicate count used to live
+        in `analyse_workbook` alone, because `analyse` is sync and
+        `count_already_imported` is not — so the single-file path, which is the
+        one people actually use most, silently lacked the check the docstring on
+        `count_already_imported` claims is "shown before the import runs". You
+        got a clean "Import 8,432 rows" button for a file already fully in the
+        database, and afterwards a report of 0 inserted with no reason given.
+
+        Keeping the two paths on one method is the fix; splitting them is what
+        let them drift.
+        """
+        report = self.analyse(frame, supplier_name, mapping)
+
+        if not report.get("ok"):
+            # Columns are missing, so the rows cannot be mapped and there is
+            # nothing meaningful to compare against what is already stored.
+            report["already_present"] = 0
+            return report
+
+        detected = mapping or detect_columns(list(frame.columns))
+        rows = [
+            row for row in (
+                self._map_row(raw, detected, supplier_name)
+                for _, raw in frame.iterrows()
+            )
+            if row is not None and row["hotel_name"] and row["country"]
+        ]
+        report["already_present"] = await self.count_already_imported(rows)
+
+        return report
 
     def analyse(self, frame: pd.DataFrame, supplier_name: str, mapping: dict = None):
         headers = list(frame.columns)

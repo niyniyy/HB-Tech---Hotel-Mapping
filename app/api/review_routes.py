@@ -62,7 +62,22 @@ async def dashboard(db: AsyncSession = Depends(get_db)):
             """
             SELECT
               (SELECT count(*) FROM supplier_hotels)                              AS supplier_hotels,
-              (SELECT count(*) FROM master_hotel_registry WHERE status='Active')  AS active_masters,
+              -- The headline count, straight from the table. Taken directly
+              -- rather than as active + provisional, so that if those two ever
+              -- fail to add up the dashboard shows the discrepancy instead of
+              -- hiding it behind an arithmetic identity that assumes it away.
+              (SELECT count(*) FROM master_hotels)                                AS master_hotels,
+              -- Same guard as provisional_masters below, and for the same
+              -- reason: an Active id whose master was cleared by a rebuild and
+              -- whose anchor record is now sitting in the review queue has no
+              -- property behind it. Counting it here labelled it a "unique
+              -- property" on the dashboard while /masters/<id> returned a row of
+              -- nulls. The unresolved ones are reported separately rather than
+              -- dropped, because they are a real backlog, not noise.
+              (SELECT count(*) FROM master_hotel_registry
+                WHERE status='Active' AND master_hotel_id IS NOT NULL)            AS active_masters,
+              (SELECT count(*) FROM master_hotel_registry
+                WHERE status='Active' AND master_hotel_id IS NULL)                AS unresolved_ids,
               (SELECT count(*) FROM master_hotel_registry WHERE status='Merged')  AS merged_ids,
               (SELECT count(*) FROM master_hotel_registry
                 WHERE status IN ('Deprecated','Dormant'))                         AS deprecated_ids,
@@ -247,6 +262,21 @@ async def master_detail(public_id: str, db: AsyncSession = Depends(get_db)):
 
     if detail is None:
         raise HTTPException(status_code=404, detail="Master hotel not found")
+
+    # The header query LEFT JOINs master_hotels, so an id whose master was
+    # cleared by a rebuild comes back as a full row of nulls. Returning that as
+    # 200 told every caller "here is the hotel" and handed them blank fields —
+    # indistinguishable from a real property with missing data. The id is real,
+    # so the message says so; there is just no property behind it to serve.
+    if detail.get("master_hotel_id") is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"{public_id} is a known ID with no master behind it. The record "
+                "that seeded it is waiting in Manual Review, so there is nothing "
+                "to show until a reviewer decides where that record belongs."
+            ),
+        )
 
     return detail
 
