@@ -363,9 +363,23 @@ class AccuracyEvaluationService:
                                 AND s3.supplier_hotel_id = r3.supplier_hotel_id
                                JOIN manual_review_candidates c
                                  ON c.supplier_hotel_id = s3.id
-                               WHERE r3.reference_id = sp.reference_id) AS in_review
+                               WHERE r3.reference_id = sp.reference_id) AS in_review,
+                       -- How many supplier records the merge would pull back
+                       -- together. This is the page's work-queue ordering: two
+                       -- hotels can both be split three ways while one scatters
+                       -- nine provider records and the other three, and the
+                       -- first is worth a reviewer's attention first.
+                       (SELECT count(*)
+                          FROM em e4
+                          JOIN hotel_mappings h ON h.master_hotel_id = e4.master_hotel_id
+                         WHERE e4.reference_id = sp.reference_id) AS provider_records
                 FROM split sp
-                ORDER BY sp.masters DESC, sp.reference_id
+                -- Ordered by fragmentation, then by how much it costs, then by
+                -- name so the order is stable and scannable across refreshes.
+                -- The previous tiebreak was reference_id — an internal key that
+                -- means nothing to the reviewer reading the list, which made a
+                -- deliberately ordered page look shuffled.
+                ORDER BY sp.masters DESC, provider_records DESC, hotel_names
                 LIMIT :limit;
                 """
             ),

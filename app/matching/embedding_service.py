@@ -3,7 +3,12 @@ import threading
 
 from sentence_transformers import SentenceTransformer
 
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+from config import settings
+
+# Read from settings rather than pinned here: the model is a deployment
+# decision (base vs fine-tuned) that has to move together with the decision
+# band in config.py, and a literal here would let the two drift apart.
+MODEL_NAME = settings.EMBEDDING_MODEL
 
 
 class EmbeddingService:

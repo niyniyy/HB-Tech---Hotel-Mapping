@@ -6,13 +6,17 @@ from app.matching.matcher import AUTO_MATCH_MIN_SCORE, MANUAL_REVIEW_MIN_SCORE
 from config import settings
 
 # Below this the AI is confident the pair is not the same hotel; the suggested
-# match is cancelled rather than queued for a human. Only the band between this
-# and 0.85 is genuinely uncertain and worth a person's time.
-AI_REJECT_BELOW = 0.70
+# match is cancelled rather than queued for a human. Only the band between the
+# two bounds is genuinely uncertain and worth a person's time.
+#
+# Both come from settings because they are calibrated to whichever model
+# settings.EMBEDDING_MODEL names — see the note there. Hard-coding them is what
+# makes a model swap change the pipeline's behaviour silently.
+AI_REJECT_BELOW = settings.AI_REJECT_BELOW
 
 # Above this the model is treated as agreeing that two records describe one
 # hotel. It confirms a rule-based candidate; on its own it never merges.
-AI_CONFIRM_AT = 0.85
+AI_CONFIRM_AT = settings.AI_CONFIRM_AT
 
 
 # Full records for the LLM prompt — the candidate dict only reliably carries the
@@ -176,7 +180,7 @@ class AIIntegrationService:
 
                 else:
 
-                    # Genuinely-uncertain embedding band (0.70–0.85). Before
+                    # Genuinely-uncertain embedding band. Before
                     # parking it with a human, let the LLM reason about identity
                     # — but only here, only to confirm or deny the rule engine's
                     # own candidate master, and never on the conflicting

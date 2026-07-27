@@ -1,6 +1,12 @@
 from app.matching.embedding_service import EmbeddingService
 from app.matching.hotel_text_builder import HotelTextBuilder
 from app.matching.vector_similarity_service import VectorSimilarityService
+from config import settings
+
+# Read from config, not from ai_integration_service — that module imports this
+# one, so borrowing its constants would make the import circular.
+AI_REJECT_BELOW = settings.AI_REJECT_BELOW
+AI_CONFIRM_AT = settings.AI_CONFIRM_AT
 
 
 class AISimilarityService:
@@ -56,10 +62,13 @@ class AISimilarityService:
                 match["similarity_score"]
             )
 
-            if similarity >= 0.85:
+            # Same bounds the caller decides on. These were literals calibrated
+            # to the base model; left that way, a fine-tuned cosine of 0.60 —
+            # above the confirm bar — would still be labelled LOW_CONFIDENCE.
+            if similarity >= AI_CONFIRM_AT:
                 decision = "AI_MATCH"
 
-            elif similarity >= 0.70:
+            elif similarity >= AI_REJECT_BELOW:
                 decision = "AI_SUGGESTED"
 
             else:

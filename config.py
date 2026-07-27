@@ -38,6 +38,38 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
 
+    # ── Embedding model + decision band (MASTERPLAN Phase 1b) ───────────────
+    # The sentence-transformer used for every hotel embedding. `models/hotel-minilm-ft`
+    # is all-MiniLM-L6-v2 fine-tuned on pairs mined from our own reference mapping;
+    # it is 384-dim like the base model, so pgvector's column is unchanged.
+    #
+    # CHANGING THIS INVALIDATES EVERY STORED EMBEDDING. Cosines are only
+    # comparable within one model, so a mixed table would score fine-tuned
+    # supplier vectors against base-model master vectors — an axis neither
+    # shares, and worse than using either model on its own.
+    #
+    # The default therefore stays on the BASE model, because that is what the
+    # deployed database's stored embeddings were generated with. Changing this
+    # value alone does not deploy the fine-tune; it creates exactly the mixed
+    # state described above. Deploying is a two-step operation:
+    #   1. set EMBEDDING_MODEL=models/hotel-minilm-ft (+ the band below) in .env
+    #   2. reset the pipeline and re-run it, so every embedding is regenerated
+    # See scripts/compare_runs.py for the measured effect of doing so.
+    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+
+    # The uncertain band, in cosine. Below AI_REJECT_BELOW a suggested match is
+    # cancelled and the record becomes its own master; at or above AI_CONFIRM_AT
+    # the model is treated as agreeing; between them a human decides.
+    #
+    # These are properties of the MODEL, not constants — they are points on one
+    # model's cosine distribution and must be re-derived whenever EMBEDDING_MODEL
+    # changes (`python -m scripts.tune_embedding_band`). The values below are the
+    # base model's; the fine-tuned model separates far more sharply and its
+    # measured equivalents are 0.50 / 0.59 — set BOTH in .env together with
+    # EMBEDDING_MODEL, never one without the other.
+    AI_REJECT_BELOW: float = 0.70
+    AI_CONFIRM_AT: float = 0.85
+
     # ── LLM integration (Phase 1) ────────────────────────────────────────────
     # An LLM adjudicates the borderline cases the embedding layer can't reason
     # about — brand distinctions, rebrands, transliterations. Disabled by
